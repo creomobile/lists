@@ -289,25 +289,27 @@ internal class SingleSelectionBehavior<T : Selectable>(
 
     override fun connect(items: List<Selectable>) {
         super.connect(items)
-        if (currentSelectedCount == 0) return
-        if (currentSelectedCount == 1) {
-            val item = currentSelectedItems.firstOrNull()
-            if (item != null)
-                currentSelectedItem = item
-        } else {
-            val selectedItems = getSelectedItems().toList()
-            selectedItems.drop(1).forEach { it.forceDeselectWithoutEvent() }
-            val item = selectedItems.first()
-            if (itemClass.isInstance(item)) {
-                @Suppress("UNCHECKED_CAST")
-                val valid = item as T
-                currentSelectedItems = sequenceOf(valid)
-                currentSelectedCount = 1
-                currentSelectedItem = valid
-            } else {
-                currentSelectedItems = emptySequence()
-                currentSelectedCount = 1
+        when (currentSelectedCount) {
+            0 -> {
                 currentSelectedItem = null
+                return
+            }
+            1 -> currentSelectedItem = currentSelectedItems.firstOrNull()
+            else -> {
+                val selectedItems = getSelectedItems().toList()
+                selectedItems.drop(1).forEach { it.forceDeselectWithoutEvent() }
+                val item = selectedItems.first()
+                if (itemClass.isInstance(item)) {
+                    @Suppress("UNCHECKED_CAST")
+                    val valid = item as T
+                    currentSelectedItems = sequenceOf(valid)
+                    currentSelectedCount = 1
+                    currentSelectedItem = valid
+                } else {
+                    currentSelectedItems = emptySequence()
+                    currentSelectedCount = 1
+                    currentSelectedItem = null
+                }
             }
         }
     }
