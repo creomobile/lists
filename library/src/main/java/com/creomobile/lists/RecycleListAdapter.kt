@@ -80,7 +80,6 @@ class RecycleListAdapter private constructor(
 
     override fun onClick(view: View?) {
         val item = view?.getTag(R.id.view_model) ?: return
-        (item as? Selectable)?.switch()
         clickListener?.onClick(view, item)
     }
 

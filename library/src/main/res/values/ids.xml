@@ -3,4 +3,5 @@
     <item type="id" name="items"/>
     <item type="id" name="view_model"/>
     <item type="id" name="selected_item"/>
+    <item type="id" name="ignore_selection"/>
 </resources>

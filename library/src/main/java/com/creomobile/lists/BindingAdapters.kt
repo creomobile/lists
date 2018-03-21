@@ -3,8 +3,11 @@ package com.creomobile.lists
 import android.databinding.BindingAdapter
 import android.databinding.InverseBindingAdapter
 import android.support.v7.widget.RecyclerView
+import android.view.View
 import android.widget.ArrayAdapter
+import android.widget.ImageView
 import android.widget.Spinner
+import android.widget.TextView
 
 @BindingAdapter("android:items")
 fun setItems(view: RecyclerView, items: List<Any>?) {
@@ -53,4 +56,16 @@ fun bindSelectedItem(view: Spinner, item: Any?) {
         event = "android:selectedItemPositionAttrChanged")
 fun bindSelectedItem(view: Spinner): Any? = view.selectedItem
 
+@BindingAdapter("android:selectable")
+fun bindSelectable(view: SelectableFrameLayout, selectable: Selectable) {
+    view.selectable = selectable
+}
 
+private fun setIgnoreTag(view: View, value: Boolean) =
+        view.setTag(R.id.ignore_selection, if (value) true else null)
+
+@BindingAdapter("android:ignoreSelection")
+fun bindIgnoreSelection(view: TextView, value: Boolean) = setIgnoreTag(view, value)
+
+@BindingAdapter("android:ignoreSelection")
+fun bindIgnoreSelection(view: ImageView, value: Boolean) = setIgnoreTag(view, value)
