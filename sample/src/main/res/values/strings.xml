@@ -1,3 +1,16 @@
 <resources>
     <string name="app_name">Lists Sample</string>
+    <string name="refresh">Refresh</string>
+    <string name="clear">Clear</string>
+    <string name="index">Index</string>
+    <string name="add">Add</string>
+    <string name="remove">Remove</string>
+    <string name="hello_blank_fragment">Hello blank fragment</string>
+    <string name="list">List</string>
+    <string name="tree">Tree</string>
+    <string name="user_picture">User Picture</string>
+    <string name="replace">replace</string>
+    <string name="selected_count">Selected Count:</string>
+    <string name="selected_id">Selected Id:</string>
+    <string name="selected_ids">Selected Ids:</string>
 </resources>
