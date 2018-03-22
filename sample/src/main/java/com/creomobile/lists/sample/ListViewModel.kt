@@ -11,8 +11,8 @@ class ListViewModel : ViewModel(), Observable {
 
     private val registry = PropertyChangeRegistry()
     private val listChangedCallback = OnListChangedCallback(this)
-    val items = object : ObservableField<ObservableList<PersonItem>>() {
-        override fun set(value: ObservableList<PersonItem>?) {
+    val items = object : ObservableField<ObservableList<Any>>() {
+        override fun set(value: ObservableList<Any>?) {
             super.get()?.removeOnListChangedCallback(listChangedCallback)
             super.set(value)
             value?.addOnListChangedCallback(listChangedCallback)
@@ -23,7 +23,7 @@ class ListViewModel : ViewModel(), Observable {
     val index = object : ObservableField<Int?>() {
         override fun set(value: Int?) {
             super.set(value)
-            registry.notifyChange(this@ListViewModel, BR.canAdd)
+            registry.notifyChange(this@ListViewModel, BR.canAddOrReplace)
         }
     }
     private val selectionSubscriptions = CompositeDisposable()
@@ -58,22 +58,28 @@ class ListViewModel : ViewModel(), Observable {
     val selectedCount = ObservableField<Int?>()
     val selectedIds = ObservableField<String?>()
     val selectedId = ObservableField<Int?>()
+    val replace = object : ObservableBoolean() {
+        override fun set(value: Boolean) {
+            val isDefaultIndex = index.get() == getDefaultIndex()
+            super.set(value)
+            if (isDefaultIndex) updateIndex()
+            registry.notifyChange(this@ListViewModel, BR.canAddOrReplace)
+        }
+    }
 
     init {
         items.set(createItems())
     }
 
     @Bindable
-    fun getCanAdd(): Boolean {
+    fun getCanAddOrReplace(): Boolean {
         val index = index.get() ?: return false
-        return index <= items.get()?.size ?: 0
+        val size = items.get()?.size ?: 0
+        return index <= if (replace.get()) size - 1 else size
     }
 
     @Bindable
     fun getCanClear() = items.get()?.size ?: 0 > 0
-
-    @Bindable
-    fun getCanReplace() = items.get()?.size ?: 0 > 1
 
     private fun resetSelection() {
         val items = items.get() ?: return
@@ -82,39 +88,51 @@ class ListViewModel : ViewModel(), Observable {
         selection = if (behavior == null) null else Selection.apply(items, behavior)
     }
 
-    private fun createItem() = PersonItem.createNew(::remove)
-    private fun createItems(): ObservableList<PersonItem> {
-        val list = ObservableArrayList<PersonItem>()
-        list.addAll((1..5).map { createItem() })
+    private fun createPersonItem() = PersonItem.createNew(::remove)
+    private fun createOrganizationItem() = OrganizationItem.createNew(::remove)
+    private fun createSeparatorItem() = SeparatorItem.createNew()
+    private fun createItems(): ObservableList<Any> {
+        val list = ObservableArrayList<Any>()
+        list.addAll((1..5).map { createPersonItem() })
         return list
     }
 
+    private fun getDefaultIndex(): Int? {
+        val size = items.get()?.size ?: 0
+        return if (replace.get())
+            if (size == 0) null else 0
+        else
+            size
+    }
+
+    private fun updateIndex() = this.index.set(getDefaultIndex())
+
     private fun onListUpdated() {
-        index.set(items.get()?.size ?: 0)
+        updateIndex()
         registry.notifyChange(this, BR.canClear)
-        registry.notifyChange(this, BR.canReplace)
     }
 
     fun refresh() = items.set(createItems())
     fun clear() = items.set(null)
-    fun replace() {
-        val items = items.get()
-        val size = items?.size ?: 0
-        if (size == 0) return
-        val index = (0 until size).random()
-        items[index] = createItem()
-    }
 
-    fun insert() {
-        var items = this.items.get()
-        if (items == null) {
-            items = ObservableArrayList<PersonItem>()
-            this.items.set(items)
+    private fun addOrReplaceItem(item: Any) {
+        fun create(): ObservableArrayList<Any> {
+            val result = ObservableArrayList<Any>()
+            this.items.set(result)
+            return result
         }
-        items.add(index.get()!!, createItem())
+
+        val items = this.items.get() ?: create()
+        val index = index.get()!!
+        if (replace.get()) items[index] = item
+        else items.add(index, item)
     }
 
-    private fun remove(item: PersonItem) {
+    fun insertOrReplacePerson() = addOrReplaceItem(createPersonItem())
+    fun insertOrReplaceOrganization() = addOrReplaceItem(createOrganizationItem())
+    fun insertOrReplaceSeparator() = addOrReplaceItem(createSeparatorItem())
+
+    private fun remove(item: Any) {
         items.get()?.remove(item)
     }
 
@@ -126,31 +144,31 @@ class ListViewModel : ViewModel(), Observable {
             registry.remove(callback)
 
     private class OnListChangedCallback(viewModel: ListViewModel) :
-            ObservableList.OnListChangedCallback<ObservableList<PersonItem>>() {
+            ObservableList.OnListChangedCallback<ObservableList<Any>>() {
         private val viewModelReference = WeakReference<ListViewModel>(viewModel)
 
-        override fun onChanged(sender: ObservableList<PersonItem>) {
+        override fun onChanged(sender: ObservableList<Any>) {
             viewModelReference.get()?.onListUpdated()
         }
 
-        override fun onItemRangeRemoved(sender: ObservableList<PersonItem>, positionStart: Int, itemCount: Int) {
+        override fun onItemRangeRemoved(sender: ObservableList<Any>, positionStart: Int, itemCount: Int) {
             viewModelReference.get()?.onListUpdated()
         }
 
-        override fun onItemRangeMoved(sender: ObservableList<PersonItem>, fromPosition: Int, toPosition: Int, itemCount: Int) {
+        override fun onItemRangeMoved(sender: ObservableList<Any>, fromPosition: Int, toPosition: Int, itemCount: Int) {
             viewModelReference.get()?.onListUpdated()
         }
 
-        override fun onItemRangeInserted(sender: ObservableList<PersonItem>, positionStart: Int, itemCount: Int) {
+        override fun onItemRangeInserted(sender: ObservableList<Any>, positionStart: Int, itemCount: Int) {
             viewModelReference.get()?.onListUpdated()
         }
 
-        override fun onItemRangeChanged(sender: ObservableList<PersonItem>, positionStart: Int, itemCount: Int) {
+        override fun onItemRangeChanged(sender: ObservableList<Any>, positionStart: Int, itemCount: Int) {
             viewModelReference.get()?.onListUpdated()
         }
     }
 
     private class SelectionBehaviorItem(val selectionBehavior: Selection.BehaviorType?) {
-        override fun toString() = selectionBehavior?.toString() ?: "Selection Behavior"
+        override fun toString() = selectionBehavior?.toString() ?: "Behavior"
     }
 }
