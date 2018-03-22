@@ -35,6 +35,8 @@ class ListFragment : Fragment() {
             layoutManager = LinearLayoutManager(context)
             adapter = RecycleListAdapter.Builder()
                     .addView<PersonItem>(R.layout.item_person, BR.vm)
+                    .addView<OrganizationItem>(R.layout.item_organization, BR.vm)
+                    .addView<SeparatorItem>(R.layout.item_separator, BR.vm)
                     .build()
         }
     }
