@@ -112,7 +112,10 @@ internal abstract class SelectionBehavior<T : Selectable>(protected val itemClas
     override val selectedCount: Observable<Int> = selectedCountSubject
     override var currentSelectedCount: Int
         get() = selectedCountSubject.value
-        protected set(value) = selectedCountSubject.onNext(value)
+        protected set(value) {
+            if (value != selectedCountSubject.value)
+                selectedCountSubject.onNext(value)
+        }
     override val selectedItems: Observable<Sequence<T>> = selectedItemsSubject
     override var currentSelectedItems: Sequence<T>
         get() = selectedItemsSubject.value
@@ -230,7 +233,7 @@ internal abstract class InitializationSelectionBehavior<T : Selectable>(
         private val initialize: Boolean = false)
     : SelectionBehavior<T>(itemClass) {
 
-    private val initializeSelectionNeeded get() = initialize && currentSelectedCount == 0
+    protected val initializeSelectionNeeded get() = initialize && currentSelectedCount == 0
 
     override fun connect(items: List<Selectable>) {
         super.connect(items)
@@ -253,8 +256,8 @@ internal abstract class InitializationSelectionBehavior<T : Selectable>(
     override fun onReplaced(newItems: List<Any>) {
         super.onReplaced(newItems)
         if (initializeSelectionNeeded)
-            (if (newItems.size > 1) getSelectableItems().firstOrNull()
-            else newItems.single() as? Selectable)
+            ((if (newItems.size == 1) newItems.single() as? Selectable else null)
+                    ?: getSelectableItems().firstOrNull())
                     ?.select()
     }
 
@@ -283,56 +286,50 @@ internal class SingleSelectionBehavior<T : Selectable>(
 
     private val selectedItemSubject = BehaviorSubject.create<SingleSelection.Optional<T>>()
     override val selectedItem: Observable<SingleSelection.Optional<T>> = selectedItemSubject
-    override var currentSelectedItem: T?
-        get() = selectedItemSubject.value?.value
-        private set (value) = selectedItemSubject.onNext(SingleSelection.Optional(value))
+    override val currentSelectedItem: T? get() = selectedItemSubject.value?.value
+    private var actualSelected: Selectable? = null
+        set(value) {
+            field = value
+            @Suppress("UNCHECKED_CAST")
+            selectedItemSubject.onNext(SingleSelection.Optional(
+                    if (value != null && itemClass.isInstance(value)) value as T else null))
+        }
+
+    private fun setSelection(item: Selectable?) {
+        @Suppress("UNCHECKED_CAST")
+        currentSelectedItems =
+                if (itemClass.isInstance(item)) sequenceOf(item as T) else emptySequence()
+        currentSelectedCount = 1
+        actualSelected = item
+    }
 
     override fun connect(items: List<Selectable>) {
         super.connect(items)
-        when (currentSelectedCount) {
-            0 -> {
-                currentSelectedItem = null
-                return
-            }
-            1 -> currentSelectedItem = currentSelectedItems.firstOrNull()
-            else -> {
-                val selectedItems = getSelectedItems().toList()
-                selectedItems.drop(1).forEach { it.forceDeselectWithoutEvent() }
-                val item = selectedItems.first()
-                if (itemClass.isInstance(item)) {
-                    @Suppress("UNCHECKED_CAST")
-                    val valid = item as T
-                    currentSelectedItems = sequenceOf(valid)
-                    currentSelectedCount = 1
-                    currentSelectedItem = valid
-                } else {
-                    currentSelectedItems = emptySequence()
-                    currentSelectedCount = 1
-                    currentSelectedItem = null
-                }
-            }
+        val count = currentSelectedCount
+        if (count == 0) {
+            actualSelected = null
+            return
         }
+
+        val selectedItems = getSelectedItems().toList()
+        if (count == 1) {
+            actualSelected = selectedItems.first()
+            return
+        }
+
+        selectedItems.drop(1).forEach { it.forceDeselectWithoutEvent() }
+        setSelection(selectedItems.first())
     }
 
     override fun onSelect(item: Selectable) {
-        var previous = currentSelectedItem ?: getSelectedItems().firstOrNull { it != item }
+        var previous = actualSelected
         if (previous != null && items?.contains(previous) != true)
             previous = null
         previous?.forceDeselectWithoutEvent()
-
-        @Suppress("UNCHECKED_CAST")
-        val current = if (itemClass.isInstance(item)) item as T else null
-
-        currentSelectedItems = if (current == null) emptySequence() else sequenceOf(current)
-        currentSelectedCount = 1
-        currentSelectedItem = current
+        setSelection(item)
     }
 
-    override fun onDeselect(item: Selectable) {
-        currentSelectedItems = emptySequence()
-        currentSelectedCount = 0
-        currentSelectedItem = null
-    }
+    override fun onDeselect(item: Selectable) = setSelection(null)
 
     override fun canDeselect(item: Selectable): Boolean = !required || super.canDeselect(item)
 
@@ -344,39 +341,33 @@ internal class SingleSelectionBehavior<T : Selectable>(
     override fun onRemoved() {
         super.onRemoved()
         if (currentSelectedCount == 0)
-            currentSelectedItem = null
+            actualSelected = null
     }
 
     override fun onReplaced(newItems: List<Any>) {
         if (newItems.size == 1) {
             val selectable = newItems.single() as? Selectable
             selectable?.cleanControllerAndDeselect()
-            val current = currentSelectedItem
-            if (current == null || getSelectableItems().contains(current)) {
-                selectable?.controller = this
+
+            if (selectable == null) {
+                super.onReplaced(newItems)
+                actualSelected = getSelectedItems().firstOrNull()
                 return
             }
 
-            if (selectable == null) {
-                currentSelectedItems = emptySequence()
-                currentSelectedCount = 0
-                currentSelectedItem = null
-            } else {
-                selectable.select()
-                selectable.controller = this
-
-                @Suppress("UNCHECKED_CAST")
-                val item = if (itemClass.isInstance(selectable)) selectable as T else null
-
-                if (item == null) {
-                    currentSelectedItems = emptySequence()
-                    currentSelectedCount = 0
-                    currentSelectedItem = null
-                } else {
-                    currentSelectedItems = sequenceOf(item)
-                    currentSelectedItem = item
+            val current = actualSelected
+            if (current == null || getSelectableItems().contains(current)) {
+                if (initializeSelectionNeeded) {
+                    selectable.select()
+                    setSelection(selectable)
                 }
+                selectable.controller = this
+                return
             }
+
+            selectable.select()
+            selectable.controller = this
+            setSelection(selectable)
         } else {
             getSelectableItems(newItems).forEach { it.cleanControllerAndDeselect() }
             super.onReplaced(newItems)
