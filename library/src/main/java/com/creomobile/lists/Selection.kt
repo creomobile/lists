@@ -315,24 +315,16 @@ internal class SingleSelectionBehavior<T : Selectable>(
     }
 
     override fun onSelect(item: Selectable) {
-        var previous = currentSelectedItem
+        var previous = currentSelectedItem ?: getSelectedItems().firstOrNull { it != item }
         if (previous != null && items?.contains(previous) != true)
             previous = null
-        @Suppress("UNCHECKED_CAST")
-        val current = if (itemClass.isInstance(item)) item as T else null
         previous?.forceDeselectWithoutEvent()
 
-        if (current == null) {
-            if (previous != null) {
-                currentSelectedItems = emptySequence()
-                currentSelectedCount = 0
-            }
-        } else {
-            currentSelectedItems = sequenceOf(current)
-            if (previous == null)
-                currentSelectedCount = 1
-        }
+        @Suppress("UNCHECKED_CAST")
+        val current = if (itemClass.isInstance(item)) item as T else null
 
+        currentSelectedItems = if (current == null) emptySequence() else sequenceOf(current)
+        currentSelectedCount = 1
         currentSelectedItem = current
     }
 
