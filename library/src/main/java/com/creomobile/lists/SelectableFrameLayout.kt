@@ -4,6 +4,7 @@ import android.content.Context
 import android.databinding.Observable
 import android.graphics.ColorFilter
 import android.graphics.drawable.ColorDrawable
+import android.os.Handler
 import android.support.v4.content.ContextCompat
 import android.util.AttributeSet
 import android.util.TypedValue
@@ -122,13 +123,10 @@ class SelectableFrameLayout : FrameLayout {
                 interpolator = DecelerateInterpolator()
                 duration = 100
             }
-            animation.setAnimationListener(object : Animation.AnimationListener {
-                override fun onAnimationRepeat(p0: Animation?) {}
-                override fun onAnimationStart(p0: Animation?) {}
-                override fun onAnimationEnd(p0: Animation?) {
-                    selectionView.visibility = View.INVISIBLE
-                }
-            })
+            Handler().postDelayed({
+                selectionView.clearAnimation()
+                selectionView.visibility = View.INVISIBLE
+            }, 100)
         }
 
         selectionView.startAnimation(animation)
