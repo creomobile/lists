@@ -33,6 +33,7 @@ class ExpandableFragment : Fragment() {
                     .addView<OrganizationItem>(R.layout.item_organization, BR.vm)
                     .addView<SeparatorItem>(R.layout.item_separator, BR.vm)
                     .withChildrenMarginStart()
+                    .scrollToInserted()
                     .build()
         }
     }

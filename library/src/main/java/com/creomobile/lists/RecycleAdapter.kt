@@ -13,12 +13,14 @@ import android.view.ViewGroup
 import java.lang.ref.WeakReference
 
 abstract class RecycleAdapter protected constructor(
-        private val viewMap: HashMap<Class<out Any>, ViewInfo>) :
+        private val viewMap: HashMap<Class<out Any>, ViewInfo>,
+        private val scrollToInserted: Boolean) :
         RecyclerView.Adapter<RecycleAdapter.ViewHolder>(), View.OnClickListener {
 
     private val listChangedCallback = OnListChangedCallback(this)
     private var clickListener: ItemClickListener? = null
     private var inflater: LayoutInflater? = null
+    private var recyclerView: RecyclerView? = null
     var items: List<Any>? = null
         set(value) {
             releaseItems()
@@ -26,6 +28,12 @@ abstract class RecycleAdapter protected constructor(
             field = value
             notifyDataSetChanged()
         }
+
+    private fun scrollToPosition(position: Int) {
+        val recyclerView = recyclerView
+        if (recyclerView?.scrollState == RecyclerView.SCROLL_STATE_IDLE)
+            recyclerView.scrollToPosition(position)
+    }
 
     fun setOnItemClickListener(listener: ItemClickListener?) {
         clickListener = listener
@@ -44,8 +52,15 @@ abstract class RecycleAdapter protected constructor(
     protected open fun onItemsChanged(positionStart: Int, itemCount: Int) =
             notifyItemRangeChanged(positionStart, itemCount)
 
-    protected open fun onItemsInserted(positionStart: Int, itemCount: Int) =
-            notifyItemRangeInserted(positionStart, itemCount)
+    protected open fun onItemsInserted(positionStart: Int, itemCount: Int) {
+        notifyItemRangeInserted(positionStart, itemCount)
+        if (scrollToInserted) {
+            val size = items!!.size
+            scrollToPosition(
+                    if (itemCount == 1 || positionStart + itemCount != size) positionStart
+                    else size - 1)
+        }
+    }
 
     protected open fun onItemsRemoved(positionStart: Int, itemCount: Int) =
             notifyItemRangeRemoved(positionStart, itemCount)
@@ -82,6 +97,11 @@ abstract class RecycleAdapter protected constructor(
         val view = inflater!!.inflate(viewType, parent, false)
         view.setOnClickListener(this)
         return ViewHolder(view)
+    }
+
+    override fun onAttachedToRecyclerView(recyclerView: RecyclerView) {
+        super.onAttachedToRecyclerView(recyclerView)
+        this.recyclerView = recyclerView
     }
 
     override fun onClick(view: View?) {
@@ -138,8 +158,10 @@ abstract class RecycleAdapter protected constructor(
 }
 
 class RecycleExpandableAdapter private constructor(
-        viewMap: HashMap<Class<out Any>, ViewInfo>, private val childrenMarginStart: Int)
-    : RecycleAdapter(viewMap), View.OnClickListener {
+        viewMap: HashMap<Class<out Any>, ViewInfo>,
+        scrollToInserted: Boolean,
+        private val childrenMarginStart: Int)
+    : RecycleAdapter(viewMap, scrollToInserted), View.OnClickListener {
 
     private val nodeSubscriber = NodeSubscriber(this)
     private var viewItemsCache: List<ItemDescriptor>? = null
@@ -449,6 +471,7 @@ class RecycleExpandableAdapter private constructor(
 
     class Builder {
         private val viewMapHolder = ViewMapHolder()
+        private var scrollToInserted: Boolean = false
         private var childrenMarginStart = 0
 
         fun addView(clazz: Class<out Any>, layoutId: Int, bindingId: Int? = null): Builder {
@@ -459,6 +482,11 @@ class RecycleExpandableAdapter private constructor(
         inline fun <reified T : Any> addView(layoutId: Int, bindingId: Int? = null) =
                 addView(T::class.java, layoutId, bindingId)
 
+        fun scrollToInserted(): Builder {
+            scrollToInserted = true
+            return this
+        }
+
         fun withChildrenMarginStart(marginStart: Int = 24): Builder {
             this.childrenMarginStart = Math.round(
                     TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, marginStart.toFloat(),
@@ -468,21 +496,21 @@ class RecycleExpandableAdapter private constructor(
 
         fun build(): RecycleExpandableAdapter {
             viewMapHolder.checkViewMap()
-            return RecycleExpandableAdapter(viewMapHolder.viewMap, childrenMarginStart)
+            return RecycleExpandableAdapter(viewMapHolder.viewMap, scrollToInserted, childrenMarginStart)
         }
     }
 }
 
 class RecycleListAdapter private constructor(
-        viewMap: HashMap<Class<out Any>, ViewInfo>) :
-        RecycleAdapter(viewMap), View.OnClickListener {
+        viewMap: HashMap<Class<out Any>, ViewInfo>, scrollToInserted: Boolean) :
+        RecycleAdapter(viewMap, scrollToInserted), View.OnClickListener {
 
     override fun getItem(position: Int) = items?.get(position) ?: throw IndexOutOfBoundsException()
     override fun getItemCount() = items?.size ?: 0
 
     class Builder {
         private val viewMapHolder = ViewMapHolder()
-
+        private var scrollToInserted: Boolean = false
 
         fun addView(clazz: Class<out Any>, layoutId: Int, bindingId: Int? = null): Builder {
             viewMapHolder.addView(clazz, layoutId, bindingId)
@@ -492,9 +520,14 @@ class RecycleListAdapter private constructor(
         inline fun <reified T : Any> addView(layoutId: Int, bindingId: Int? = null) =
                 addView(T::class.java, layoutId, bindingId)
 
+        fun scrollToInserted(): Builder {
+            scrollToInserted = true
+            return this
+        }
+
         fun build(): RecycleListAdapter {
             viewMapHolder.checkViewMap()
-            return RecycleListAdapter(viewMapHolder.viewMap)
+            return RecycleListAdapter(viewMapHolder.viewMap, scrollToInserted)
         }
     }
 }

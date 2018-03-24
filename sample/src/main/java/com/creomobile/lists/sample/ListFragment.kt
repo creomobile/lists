@@ -32,6 +32,7 @@ class ListFragment : Fragment() {
                     .addView<PersonItem>(R.layout.item_person_selectable, BR.vm)
                     .addView<OrganizationItem>(R.layout.item_organization, BR.vm)
                     .addView<SeparatorItem>(R.layout.item_separator, BR.vm)
+                    .scrollToInserted()
                     .build()
         }
     }
