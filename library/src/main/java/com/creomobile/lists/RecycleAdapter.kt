@@ -19,6 +19,7 @@ abstract class RecycleAdapter protected constructor(
         RecyclerView.Adapter<RecycleAdapter.ViewHolder>(), View.OnClickListener {
 
     private val selectableSubscriber: SelectableSubscriber?
+    @Suppress("LeakingThis")
     private val listChangedCallback = OnListChangedCallback(this)
     private var clickListener: ItemClickListener? = null
     private var inflater: LayoutInflater? = null
@@ -32,6 +33,7 @@ abstract class RecycleAdapter protected constructor(
         }
 
     init {
+        @Suppress("LeakingThis")
         selectableSubscriber = if (scrollToSelected) SelectableSubscriber(this) else null
     }
 
