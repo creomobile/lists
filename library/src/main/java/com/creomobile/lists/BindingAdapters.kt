@@ -13,7 +13,7 @@ import android.widget.TextView
 fun setItems(view: RecyclerView, items: List<Any>?) {
     if (view.getTag(R.id.items) == items) return
     view.setTag(R.id.items, items)
-    (view.adapter as? RecycleListAdapter)?.items = items
+    (view.adapter as? RecycleAdapter)?.items = items
 }
 
 @BindingAdapter("android:onItemClick")

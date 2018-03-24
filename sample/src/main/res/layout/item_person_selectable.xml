@@ -17,9 +17,15 @@
         android:focusable="true"
         app:cardBackgroundColor="@{vm.color}">
 
-        <include
-            layout="@layout/view_person"
-            app:person="@{vm}" />
+        <com.creomobile.lists.SelectableFrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:selectable="@{vm}">
+
+            <include
+                layout="@layout/view_person"
+                app:person="@{vm}" />
+        </com.creomobile.lists.SelectableFrameLayout>
 
     </android.support.v7.widget.CardView>
 </layout>

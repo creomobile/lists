@@ -6,10 +6,10 @@
     <string name="remove">Remove</string>
     <string name="hello_blank_fragment">Hello blank fragment</string>
     <string name="list">List</string>
-    <string name="tree">Tree</string>
     <string name="user_picture">User Picture</string>
     <string name="count">Count:</string>
     <string name="id">Id:</string>
     <string name="ids">Ids:</string>
     <string name="selection">Selection</string>
+    <string name="expandable">Expandable</string>
 </resources>

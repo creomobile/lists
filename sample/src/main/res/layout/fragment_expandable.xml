@@ -1,0 +1,147 @@
+<layout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    tools:context="com.creomobile.lists.sample.ListFragment">
+
+    <data>
+
+        <variable
+            name="vm"
+            type="com.creomobile.lists.sample.ExpandableViewModel" />
+    </data>
+
+    <android.support.constraint.ConstraintLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+
+        <Button
+            android:id="@+id/button"
+            android:layout_width="90dp"
+            android:layout_height="wrap_content"
+            android:onClick="@{() -> vm.refresh()}"
+            android:text="@string/refresh"
+            app:layout_constraintEnd_toStartOf="@+id/button2"
+            app:layout_constraintHorizontal_chainStyle="spread"
+            app:layout_constraintTop_toTopOf="parent" />
+
+        <Button
+            android:id="@+id/button2"
+            android:layout_width="90dp"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="16dp"
+            android:enabled="@{vm.canClear}"
+            android:onClick="@{() -> vm.clear()}"
+            android:text="@string/clear"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintTop_toTopOf="parent" />
+
+        <EditText
+            android:id="@+id/editText"
+            android:layout_width="51dp"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp"
+            android:layout_marginStart="16dp"
+            android:layout_marginTop="8dp"
+            android:ems="10"
+            android:hint="@string/index"
+            android:inputType="number"
+            android:text="@={vm.index}"
+            app:layout_constraintBottom_toBottomOf="@+id/button4"
+            app:layout_constraintEnd_toStartOf="@+id/button4"
+            app:layout_constraintHorizontal_bias="0.5"
+            app:layout_constraintHorizontal_chainStyle="spread_inside"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="@+id/button4" />
+
+        <Button
+            android:id="@+id/button4"
+            android:layout_width="85dp"
+            android:layout_height="wrap_content"
+            android:enabled="@{vm.canAddOrReplace}"
+            android:onClick="@{() -> vm.insertOrReplacePerson()}"
+            android:text='@{vm.replace ? "Replace Person" : "Add Person"}'
+            app:layout_constraintEnd_toStartOf="@+id/button5"
+            app:layout_constraintHorizontal_bias="0.5"
+            app:layout_constraintStart_toEndOf="@+id/editText"
+            app:layout_constraintTop_toBottomOf="@+id/button"
+            tools:text="Replace Person" />
+
+        <View
+            android:id="@+id/separator"
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_marginEnd="16dp"
+            android:layout_marginStart="16dp"
+            android:layout_marginTop="8dp"
+            android:background="?android:attr/listDivider"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@+id/button4"
+            tools:background="@android:color/black" />
+
+        <android.support.v7.widget.RecyclerView
+            android:id="@+id/recyclerView"
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:layout_marginBottom="8dp"
+            android:layout_marginEnd="16dp"
+            android:layout_marginStart="16dp"
+            android:layout_marginTop="8dp"
+            android:items="@{vm.items}"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@+id/separator" />
+
+        <Button
+            android:id="@+id/button5"
+            android:layout_width="85dp"
+            android:layout_height="wrap_content"
+            android:enabled="@{vm.canAddOrReplace}"
+            android:onClick="@{() -> vm.insertOrReplaceOrganization()}"
+            android:text='@{vm.replace ? "Replace Org." : "Add Org."}'
+            app:layout_constraintEnd_toStartOf="@+id/button6"
+            app:layout_constraintHorizontal_bias="0.5"
+            app:layout_constraintStart_toEndOf="@+id/button4"
+            app:layout_constraintTop_toTopOf="@+id/button4"
+            tools:text="Replace Org." />
+
+        <Button
+            android:id="@+id/button6"
+            android:layout_width="105dp"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="16dp"
+            android:enabled="@{vm.canAddOrReplace}"
+            android:onClick="@{() -> vm.insertOrReplaceSeparator()}"
+            android:text='@{vm.replace ? "Replace Separator" : "Add Separator"}'
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintHorizontal_bias="0.5"
+            app:layout_constraintStart_toEndOf="@+id/button5"
+            app:layout_constraintTop_toTopOf="@+id/button4"
+            tools:text="Replace Separator" />
+
+        <Switch
+            android:id="@+id/switch1"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp"
+            android:layout_marginStart="16dp"
+            android:layout_marginTop="8dp"
+            android:checked="@={vm.replace}"
+            app:layout_constraintBottom_toBottomOf="@+id/button"
+            app:layout_constraintLeft_toLeftOf="parent"
+            app:layout_constraintTop_toTopOf="@+id/button" />
+
+        <TextView
+            android:id="@+id/textView10"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:text='@{vm.replace ? "Replace" : "Add"}'
+            app:layout_constraintBaseline_toBaselineOf="@+id/button"
+            app:layout_constraintStart_toEndOf="@+id/switch1"
+            tools:text="Add" />
+
+    </android.support.constraint.ConstraintLayout>
+
+</layout>

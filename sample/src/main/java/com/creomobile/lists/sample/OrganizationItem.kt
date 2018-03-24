@@ -1,11 +1,25 @@
 package com.creomobile.lists.sample
 
+import android.databinding.ObservableBoolean
+import android.databinding.ObservableField
+import android.databinding.ObservableList
+import com.creomobile.lists.Node
 import com.creomobile.lists.Selectable
 
 class OrganizationItem private constructor(
         val id: Int, val name: String, private val removeHandler: ((OrganizationItem) -> Unit)?)
-    : Selectable() {
+    : Selectable(), Node<Any> {
 
+    override val items = object : ObservableField<List<Any>?>() {
+        override fun set(value: List<Any>?) {
+            super.set(value)
+            itemsObservable.set(value as? ObservableList<Any>)
+        }
+    }
+    val itemsObservable = ObservableField<ObservableList<Any>?>()
+    override val expanded = ObservableBoolean()
+
+    fun switchExpanded() = expanded.set(!expanded.get())
     fun remove() = removeHandler?.invoke(this)
 
     companion object {

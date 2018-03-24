@@ -14,7 +14,7 @@ class MainActivity : AppCompatActivity() {
 
         val adapter = ViewPagerAdapter(supportFragmentManager)
         adapter.addFragment(ListFragment.newInstance(), getString(R.string.list))
-        adapter.addFragment(TreeFragment.newInstance(), getString(R.string.tree))
+        adapter.addFragment(ExpandableFragment.newInstance(), getString(R.string.expandable))
         viewPager.adapter = adapter
         tabLayout.setupWithViewPager(viewPager)
 
