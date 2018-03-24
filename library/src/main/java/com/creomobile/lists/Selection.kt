@@ -10,19 +10,27 @@ interface Selection<T : Selectable> {
     val currentSelectedCount: Int
     val selectedItems: Observable<Sequence<T>>
     val currentSelectedItems: Sequence<T>
+    var items: Iterable<Any>?
 
     companion object {
-        fun <T : Selectable> apply(items: Iterable<Any>, behaviorType: BehaviorType,
-                                   itemClass: Class<*>): Selection<T> = when (behaviorType) {
+        fun <T : Selectable> create(behaviorType: BehaviorType, itemClass: Class<*>): Selection<T> =
+                when (behaviorType) {
 
-            BehaviorType.Multi -> MultiSelectionBehavior(itemClass, items)
-            BehaviorType.OneOrMore -> OneOrMoreSelectionBehavior(itemClass, false, items)
-            BehaviorType.OneOrMoreInit -> OneOrMoreSelectionBehavior(itemClass, true, items)
-            BehaviorType.SingleOrNone -> SingleSelection.apply(items, SingleSelection.BehaviorType.SingleOrNone, itemClass)
-            BehaviorType.SingleOrNoneInit -> SingleSelection.apply(items, SingleSelection.BehaviorType.SingleOrNoneInit, itemClass)
-            BehaviorType.Single -> SingleSelection.apply(items, SingleSelection.BehaviorType.Single, itemClass)
-            BehaviorType.SingleInit -> SingleSelection.apply(items, SingleSelection.BehaviorType.SingleInit, itemClass)
-        }
+                    BehaviorType.Multi -> MultiSelectionBehavior(itemClass)
+                    BehaviorType.OneOrMore -> OneOrMoreSelectionBehavior(itemClass, false)
+                    BehaviorType.OneOrMoreInit -> OneOrMoreSelectionBehavior(itemClass, true)
+                    BehaviorType.SingleOrNone -> SingleSelection.create(SingleSelection.BehaviorType.SingleOrNone, itemClass)
+                    BehaviorType.SingleOrNoneInit -> SingleSelection.create(SingleSelection.BehaviorType.SingleOrNoneInit, itemClass)
+                    BehaviorType.Single -> SingleSelection.create(SingleSelection.BehaviorType.Single, itemClass)
+                    BehaviorType.SingleInit -> SingleSelection.create(SingleSelection.BehaviorType.SingleInit, itemClass)
+                }
+
+        inline fun <reified T : Selectable> create(behaviorType: BehaviorType) =
+                create<T>(behaviorType, T::class.java)
+
+        fun <T : Selectable> apply(items: Iterable<Any>, behaviorType: BehaviorType,
+                                   itemClass: Class<*>): Selection<T> =
+                create<T>(behaviorType, itemClass).apply { this.items = items }
 
         inline fun <reified T : Selectable> apply(items: Iterable<Any>, behaviorType: BehaviorType) =
                 apply<T>(items, behaviorType, T::class.java)
@@ -58,13 +66,20 @@ interface SingleSelection<T : Selectable> : Selection<T> {
     val currentSelectedItem: T?
 
     companion object {
-        fun <T : Selectable> apply(items: Iterable<Any>, behaviorType: BehaviorType,
-                                   itemClass: Class<*>): SingleSelection<T> = when (behaviorType) {
-            BehaviorType.SingleOrNone -> SingleSelectionBehavior(itemClass, false, false, items)
-            BehaviorType.SingleOrNoneInit -> SingleSelectionBehavior(itemClass, true, false, items)
-            BehaviorType.Single -> SingleSelectionBehavior(itemClass, false, true, items)
-            BehaviorType.SingleInit -> SingleSelectionBehavior(itemClass, true, true, items)
+        fun <T : Selectable> create(behaviorType: BehaviorType, itemClass: Class<*>):
+                SingleSelection<T> = when (behaviorType) {
+            BehaviorType.SingleOrNone -> SingleSelectionBehavior(itemClass, false, false)
+            BehaviorType.SingleOrNoneInit -> SingleSelectionBehavior(itemClass, true, false)
+            BehaviorType.Single -> SingleSelectionBehavior(itemClass, false, true)
+            BehaviorType.SingleInit -> SingleSelectionBehavior(itemClass, true, true)
         }
+
+        inline fun <reified T : Selectable> create(behaviorType: BehaviorType) =
+                create<T>(behaviorType, T::class.java)
+
+        fun <T : Selectable> apply(items: Iterable<Any>, behaviorType: BehaviorType,
+                                   itemClass: Class<*>) =
+                create<T>(behaviorType, itemClass).apply { this.items = items }
 
         inline fun <reified T : Selectable> apply(items: Iterable<Any>, behaviorType: BehaviorType) =
                 apply<T>(items, behaviorType, T::class.java)
@@ -94,7 +109,7 @@ internal abstract class SelectionBehavior<T : Selectable>(protected val itemClas
     : Selection<T>, SelectionController {
 
     private val listChangedCallback = OnListChangedCallback(this)
-    var items: Iterable<Any>? = null
+    override var items: Iterable<Any>? = null
         set(value) {
             disconnect()
             field = value
@@ -265,24 +280,13 @@ internal abstract class InitializationSelectionBehavior<T : Selectable>(
 }
 
 internal class OneOrMoreSelectionBehavior<T : Selectable>(itemClass: Class<*>, initialize: Boolean)
-    : InitializationSelectionBehavior<T>(itemClass, initialize) {
-
-    constructor(itemClass: Class<*>, initialize: Boolean, items: Iterable<Any>)
-            : this(itemClass, initialize) {
-        this.items = items
-    }
-}
+    : InitializationSelectionBehavior<T>(itemClass, initialize)
 
 internal class SingleSelectionBehavior<T : Selectable>(
         itemClass: Class<*>,
         initialize: Boolean,
         private val required: Boolean)
     : InitializationSelectionBehavior<T>(itemClass, initialize), SingleSelection<T> {
-
-    constructor(itemClass: Class<*>, initialize: Boolean, required: Boolean, items: Iterable<Any>)
-            : this(itemClass, initialize, required) {
-        this.items = items
-    }
 
     private val selectedItemSubject = BehaviorSubject.create<SingleSelection.Optional<T>>()
     override val selectedItem: Observable<SingleSelection.Optional<T>> = selectedItemSubject
