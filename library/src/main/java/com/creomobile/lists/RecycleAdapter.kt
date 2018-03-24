@@ -14,9 +14,11 @@ import java.lang.ref.WeakReference
 
 abstract class RecycleAdapter protected constructor(
         private val viewMap: HashMap<Class<out Any>, ViewInfo>,
-        private val scrollToInserted: Boolean) :
+        private val scrollToInserted: Boolean,
+        scrollToSelected: Boolean) :
         RecyclerView.Adapter<RecycleAdapter.ViewHolder>(), View.OnClickListener {
 
+    private val selectableSubscriber: SelectableSubscriber?
     private val listChangedCallback = OnListChangedCallback(this)
     private var clickListener: ItemClickListener? = null
     private var inflater: LayoutInflater? = null
@@ -28,6 +30,10 @@ abstract class RecycleAdapter protected constructor(
             field = value
             notifyDataSetChanged()
         }
+
+    init {
+        selectableSubscriber = if (scrollToSelected) SelectableSubscriber(this) else null
+    }
 
     private fun scrollToPosition(position: Int) {
         val recyclerView = recyclerView
@@ -41,18 +47,35 @@ abstract class RecycleAdapter protected constructor(
 
     protected open fun initItems(items: List<Any>?) {
         (items as? ObservableList<Any>)?.addOnListChangedCallback(listChangedCallback)
+        selectableSubscriber?.subscribeItems(items)
     }
 
     protected open fun releaseItems() {
         (items as? ObservableList<Any>)?.removeOnListChangedCallback(listChangedCallback)
+        selectableSubscriber?.unSubscribeAll()
     }
 
-    protected open fun onItemsChanged() = notifyDataSetChanged()
+    private fun getItemsRange(positionStart: Int, itemCount: Int) =
+            (positionStart until positionStart + itemCount).map { getItem(it) }
 
-    protected open fun onItemsChanged(positionStart: Int, itemCount: Int) =
-            notifyItemRangeChanged(positionStart, itemCount)
+    protected open fun onItemsChanged() {
+        selectableSubscriber?.apply {
+            unSubscribeAll()
+            subscribeItems(items)
+        }
+        notifyDataSetChanged()
+    }
+
+    protected open fun onItemsChanged(positionStart: Int, itemCount: Int) {
+        selectableSubscriber?.apply {
+            unSubscribeRemoved()
+            subscribeItems(getItemsRange(positionStart, itemCount))
+        }
+        notifyItemRangeChanged(positionStart, itemCount)
+    }
 
     protected open fun onItemsInserted(positionStart: Int, itemCount: Int) {
+        selectableSubscriber?.subscribeItems(getItemsRange(positionStart, itemCount))
         notifyItemRangeInserted(positionStart, itemCount)
         if (scrollToInserted) {
             val size = items!!.size
@@ -62,8 +85,10 @@ abstract class RecycleAdapter protected constructor(
         }
     }
 
-    protected open fun onItemsRemoved(positionStart: Int, itemCount: Int) =
-            notifyItemRangeRemoved(positionStart, itemCount)
+    protected open fun onItemsRemoved(positionStart: Int, itemCount: Int) {
+        selectableSubscriber?.unSubscribeRemoved()
+        notifyItemRangeRemoved(positionStart, itemCount)
+    }
 
     protected open fun onItemsMoved(fromPosition: Int, toPosition: Int, itemCount: Int) =
             notifyItemMoved(fromPosition, toPosition)
@@ -74,6 +99,8 @@ abstract class RecycleAdapter protected constructor(
     }
 
     protected abstract fun getItem(position: Int): Any
+
+    protected abstract fun getPosition(item: Any): Int
 
     private fun getViewInfo(item: Any): ViewInfo = viewMap[item.javaClass]
             ?: throw IllegalStateException(
@@ -107,6 +134,11 @@ abstract class RecycleAdapter protected constructor(
     override fun onClick(view: View?) {
         val item = view?.getTag(R.id.view_model) ?: return
         clickListener?.onClick(view, item)
+    }
+
+    private fun onSelectedChanged(selectable: Selectable) {
+        if (selectable.selected.get())
+            scrollToPosition(getPosition(selectable))
     }
 
     class ViewHolder(val view: View) : RecyclerView.ViewHolder(view) {
@@ -155,13 +187,87 @@ abstract class RecycleAdapter protected constructor(
                 throw IllegalStateException("There are no item views added")
         }
     }
+
+    protected abstract class Subscriber<
+            in TAdapter : RecycleAdapter,
+            TItem,
+            out TSubscription : Subscriber.Subscription<TItem>>
+    (private val adapter: TAdapter) {
+
+        private val subscriptionMap = HashMap<TItem, TSubscription>(16)
+
+        protected abstract fun createSubscription(adapter: TAdapter, item: TItem): TSubscription
+
+        fun subscribe(item: TItem) {
+            subscriptionMap[item] = createSubscription(adapter, item)
+        }
+
+        private fun unSubscribe(item: TItem) {
+            val subscription = subscriptionMap[item] ?: throw IndexOutOfBoundsException()
+            subscription.unSubscribe()
+            subscriptionMap.remove(item)
+        }
+
+        fun unSubscribeAll() {
+            subscriptionMap.values.forEach { it.unSubscribe() }
+            subscriptionMap.clear()
+        }
+
+        fun unSubscribeRemoved(actualItems: Collection<TItem>) {
+            val hashSet = HashSet(actualItems)
+            subscriptionMap.values
+                    .filter { !hashSet.contains(it.item) }
+                    .map { it.item }
+                    .forEach(::unSubscribe)
+        }
+
+        interface Subscription<out TItem> {
+            val item: TItem
+            fun unSubscribe()
+        }
+    }
+
+    protected inline fun <reified TItem> Subscriber<*, TItem, *>.subscribeItems(items: List<Any>?) =
+            items?.filterIsInstance<TItem>()?.forEach { subscribe(it) }
+
+    private inline fun <reified TItem> Subscriber<*, TItem, *>.unSubscribeRemoved() {
+        val count = itemCount
+        if (count == 0)
+            unSubscribeAll()
+        else
+            unSubscribeRemoved(getItemsRange(0, count).filterIsInstance<TItem>())
+    }
+
+    private class SelectableSubscriber(adapter: RecycleAdapter) :
+            Subscriber<RecycleAdapter, Selectable, SelectableSubscriber.Subscription>(adapter) {
+
+        override fun createSubscription(adapter: RecycleAdapter, item: Selectable) =
+                Subscription(adapter, item)
+
+        private class Subscription(val adapter: RecycleAdapter,
+                                   override val item: Selectable) :
+                Subscriber.Subscription<Selectable> {
+
+            private val callback = object : Observable.OnPropertyChangedCallback() {
+                override fun onPropertyChanged(sender: Observable?, propertyId: Int) =
+                        adapter.onSelectedChanged(item)
+            }
+
+            init {
+                item.selected.addOnPropertyChangedCallback(callback)
+            }
+
+            override fun unSubscribe() = item.selected.removeOnPropertyChangedCallback(callback)
+        }
+    }
 }
 
 class RecycleExpandableAdapter private constructor(
         viewMap: HashMap<Class<out Any>, ViewInfo>,
         scrollToInserted: Boolean,
+        scrollToSelected: Boolean,
         private val childrenMarginStart: Int)
-    : RecycleAdapter(viewMap, scrollToInserted), View.OnClickListener {
+    : RecycleAdapter(viewMap, scrollToInserted, scrollToSelected), View.OnClickListener {
 
     private val nodeSubscriber = NodeSubscriber(this)
     private var viewItemsCache: List<ItemDescriptor>? = null
@@ -186,13 +292,10 @@ class RecycleExpandableAdapter private constructor(
         viewItemsCache = null
     }
 
-    private fun subscribeItems(items: List<Any>?) =
-            items?.filterIsInstance<Node<Any>>()?.forEach { nodeSubscriber.subscribe(it) }
-
     override fun initItems(items: List<Any>?) {
         clearCache()
         super.initItems(items)
-        subscribeItems(items)
+        nodeSubscriber.subscribeItems(items)
     }
 
     override fun releaseItems() {
@@ -201,6 +304,7 @@ class RecycleExpandableAdapter private constructor(
     }
 
     override fun getItem(position: Int) = viewItems[position].item
+    override fun getPosition(item: Any) = viewItems.indexOfFirst { it.item == item }
     override fun getItemCount(): Int {
         val size = viewItems.size
         previousViewSize = size
@@ -216,9 +320,6 @@ class RecycleExpandableAdapter private constructor(
     private fun getSubItemsViewPosition(node: Node<out Any>) =
             getNodeViewPosition(items!!.indexOf(node)) + 1
 
-    private fun unSubscribeRemoved() =
-            nodeSubscriber.unSubscribeRemoved(items?.filterIsInstance<Node<Any>>().orEmpty())
-
     private fun getItemsRange(positionStart: Int, itemCount: Int) =
             items!!.drop(positionStart).take(itemCount)
 
@@ -230,15 +331,15 @@ class RecycleExpandableAdapter private constructor(
     override fun onItemsChanged() {
         clearCache()
         nodeSubscriber.unSubscribeAll()
-        subscribeItems(items)
+        nodeSubscriber.subscribeItems(items)
         super.onItemsChanged()
     }
 
     override fun onItemsChanged(positionStart: Int, itemCount: Int) {
         clearCache()
-        unSubscribeRemoved()
+        nodeSubscriber.unSubscribeRemoved()
         val items = getItemsRange(positionStart, itemCount)
-        subscribeItems(items)
+        nodeSubscriber.subscribeItems(items)
 
         val size = getExpandedItemsSize(items)
         val previousSize = size + previousViewSize - viewItems.size
@@ -260,13 +361,13 @@ class RecycleExpandableAdapter private constructor(
     override fun onItemsInserted(positionStart: Int, itemCount: Int) {
         clearCache()
         val items = getItemsRange(positionStart, itemCount)
-        subscribeItems(items)
+        nodeSubscriber.subscribeItems(items)
         super.onItemsInserted(getNodeViewPosition(positionStart), getExpandedItemsSize(items))
     }
 
     override fun onItemsRemoved(positionStart: Int, itemCount: Int) {
         clearCache()
-        unSubscribeRemoved()
+        nodeSubscriber.unSubscribeRemoved()
         super.onItemsRemoved(getNodeViewPosition(positionStart), previousViewSize - viewItems.size)
     }
 
@@ -362,74 +463,49 @@ class RecycleExpandableAdapter private constructor(
 
     private class ItemDescriptor(val item: Any, val isChild: Boolean = false)
 
-    private class NodeSubscriber(private val adapter: RecycleExpandableAdapter) {
+    private class NodeSubscriber(adapter: RecycleExpandableAdapter) :
+            Subscriber<RecycleExpandableAdapter, Node<out Any>, NodeSubscriber.Subscription>(adapter) {
 
-        private val subscriptionMap = HashMap<Node<out Any>, Subscription>(16)
-
-        fun subscribe(node: Node<out Any>) {
-            subscriptionMap[node] = Subscription(this, adapter, node)
-        }
-
-        fun unSubscribe(node: Node<out Any>) {
-            val subscription = subscriptionMap[node] ?: throw IndexOutOfBoundsException()
-            subscription.unSubscribe()
-            subscriptionMap.remove(node)
-        }
-
-        fun unSubscribeAll() {
-            subscriptionMap.values.forEach { it.unSubscribe() }
-            subscriptionMap.clear()
-        }
-
-        fun unSubscribeRemoved(actualNodes: Collection<Node<out Any>>) {
-            val hashSet = HashSet(actualNodes)
-            subscriptionMap.values
-                    .filter { !hashSet.contains(it.node) }
-                    .map { it.node }
-                    .forEach(::unSubscribe)
-        }
+        override fun createSubscription(adapter: RecycleExpandableAdapter, item: Node<out Any>) =
+                Subscription(adapter, item)
 
         private class Subscription(
-                private val subscriber: NodeSubscriber,
-                private val adapter: RecycleExpandableAdapter,
-                val node: Node<out Any>) {
+                private val adapter: RecycleExpandableAdapter, override val item: Node<out Any>)
+            : Subscriber.Subscription<Node<out Any>> {
 
-            var previousSize: Int
-            private fun updatePreviousSize() {
-                previousSize = node.items.get()?.size ?: 0
-            }
-
-            init {
-                previousSize = node.items.get()?.size ?: 0
-            }
-
+            private var previousSize: Int
             private val itemsChangedCallback = object : Observable.OnPropertyChangedCallback() {
                 override fun onPropertyChanged(sender: Observable?, propertyId: Int) = onItemsChanged()
             }
             private val expandedChangedCallback = object : Observable.OnPropertyChangedCallback() {
                 override fun onPropertyChanged(sender: Observable?, propertyId: Int) =
-                        adapter.onNodeExpandedChanged(node)
+                        adapter.onNodeExpandedChanged(item)
             }
             private var previousObservableList: ObservableList<Any>? = null
-            private var listChangedCallback = OnListChangedCallback(this, adapter, node)
+            private var listChangedCallback = OnListChangedCallback(this, adapter, item)
 
             private fun onItemsChanged() {
                 previousObservableList?.removeOnListChangedCallback(listChangedCallback)
-                previousObservableList = node.items.get() as? ObservableList<Any>
+                previousObservableList = item.items.get() as? ObservableList<Any>
                 previousObservableList?.addOnListChangedCallback(listChangedCallback)
-                adapter.onSubItemsChanged(node, previousSize)
+                adapter.onSubItemsChanged(item, previousSize)
                 updatePreviousSize()
             }
 
+            private fun updatePreviousSize() {
+                previousSize = item.items.get()?.size ?: 0
+            }
+
             init {
-                node.items.addOnPropertyChangedCallback(itemsChangedCallback)
-                node.expanded.addOnPropertyChangedCallback(expandedChangedCallback)
+                previousSize = item.items.get()?.size ?: 0
+                item.items.addOnPropertyChangedCallback(itemsChangedCallback)
+                item.expanded.addOnPropertyChangedCallback(expandedChangedCallback)
                 onItemsChanged()
             }
 
-            fun unSubscribe() {
-                node.items.removeOnPropertyChangedCallback(itemsChangedCallback)
-                node.expanded.removeOnPropertyChangedCallback(expandedChangedCallback)
+            override fun unSubscribe() {
+                item.items.removeOnPropertyChangedCallback(itemsChangedCallback)
+                item.expanded.removeOnPropertyChangedCallback(expandedChangedCallback)
                 previousObservableList?.removeOnListChangedCallback(listChangedCallback)
             }
 
@@ -469,9 +545,13 @@ class RecycleExpandableAdapter private constructor(
         }
     }
 
+    private inline fun <reified TItem> Subscriber<*, TItem, *>.unSubscribeRemoved() =
+            unSubscribeRemoved(items?.filterIsInstance<TItem>().orEmpty())
+
     class Builder {
         private val viewMapHolder = ViewMapHolder()
-        private var scrollToInserted: Boolean = false
+        private var scrollToInserted = false
+        private var scrollToSelected = false
         private var childrenMarginStart = 0
 
         fun addView(clazz: Class<out Any>, layoutId: Int, bindingId: Int? = null): Builder {
@@ -487,6 +567,11 @@ class RecycleExpandableAdapter private constructor(
             return this
         }
 
+        fun scrollToSelected(): Builder {
+            scrollToSelected = true
+            return this
+        }
+
         fun withChildrenMarginStart(marginStart: Int = 24): Builder {
             this.childrenMarginStart = Math.round(
                     TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, marginStart.toFloat(),
@@ -496,21 +581,26 @@ class RecycleExpandableAdapter private constructor(
 
         fun build(): RecycleExpandableAdapter {
             viewMapHolder.checkViewMap()
-            return RecycleExpandableAdapter(viewMapHolder.viewMap, scrollToInserted, childrenMarginStart)
+            return RecycleExpandableAdapter(viewMapHolder.viewMap, scrollToInserted,
+                    scrollToSelected, childrenMarginStart)
         }
     }
 }
 
 class RecycleListAdapter private constructor(
-        viewMap: HashMap<Class<out Any>, ViewInfo>, scrollToInserted: Boolean) :
-        RecycleAdapter(viewMap, scrollToInserted), View.OnClickListener {
+        viewMap: HashMap<Class<out Any>, ViewInfo>,
+        scrollToInserted: Boolean,
+        scrollToSelected: Boolean) :
+        RecycleAdapter(viewMap, scrollToInserted, scrollToSelected), View.OnClickListener {
 
     override fun getItem(position: Int) = items?.get(position) ?: throw IndexOutOfBoundsException()
+    override fun getPosition(item: Any) = items?.indexOf(item) ?: -1
     override fun getItemCount() = items?.size ?: 0
 
     class Builder {
         private val viewMapHolder = ViewMapHolder()
-        private var scrollToInserted: Boolean = false
+        private var scrollToInserted = false
+        private var scrollToSelected = false
 
         fun addView(clazz: Class<out Any>, layoutId: Int, bindingId: Int? = null): Builder {
             viewMapHolder.addView(clazz, layoutId, bindingId)
@@ -525,9 +615,14 @@ class RecycleListAdapter private constructor(
             return this
         }
 
+        fun scrollToSelected(): Builder {
+            scrollToSelected = true
+            return this
+        }
+
         fun build(): RecycleListAdapter {
             viewMapHolder.checkViewMap()
-            return RecycleListAdapter(viewMapHolder.viewMap, scrollToInserted)
+            return RecycleListAdapter(viewMapHolder.viewMap, scrollToInserted, scrollToSelected)
         }
     }
 }
