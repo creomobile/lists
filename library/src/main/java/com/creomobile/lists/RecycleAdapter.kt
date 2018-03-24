@@ -490,7 +490,6 @@ class RecycleExpandableAdapter private constructor(
                 previousObservableList?.removeOnListChangedCallback(listChangedCallback)
                 previousObservableList = item.items.get() as? ObservableList<Any>
                 previousObservableList?.addOnListChangedCallback(listChangedCallback)
-                adapter.onSubItemsChanged(item, previousSize)
                 updatePreviousSize()
             }
 
