@@ -104,9 +104,13 @@ abstract class RecycleAdapter protected constructor(
 
     protected abstract fun getPosition(item: Any): Int
 
-    private fun getViewInfo(item: Any): ViewInfo = viewMap[item.javaClass]
-            ?: throw IllegalStateException(
-                    "View descriptor for the '${item.javaClass}' class is not found.")
+    private fun findViewInfo(item: Any): ViewInfo {
+        val key = viewMap.keys.firstOrNull { it.isInstance(item) } ?: throw IllegalStateException(
+                "View descriptor for the '${item.javaClass}' class is not found.")
+        return viewMap[key]!!
+    }
+
+    private fun getViewInfo(item: Any) = viewMap[item.javaClass] ?: findViewInfo(item)
 
     override fun getItemViewType(position: Int) = getViewInfo(getItem(position)).layoutId
 
