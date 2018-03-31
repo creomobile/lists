@@ -68,7 +68,7 @@
                     android:layout_gravity="center_vertical"
                     android:layout_marginEnd="8dp"
                     android:layout_marginStart="8dp"
-                    android:text="@{vm.itemsObservable.size}"
+                    android:text="@{String.valueOf(vm.itemsObservable.size)}"
                     tools:text="1" />
 
                 <ImageView
