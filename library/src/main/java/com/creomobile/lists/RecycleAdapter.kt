@@ -490,10 +490,12 @@ class RecycleExpandableAdapter private constructor(
             private var previousObservableList: ObservableList<Any>? = null
             private var listChangedCallback = OnListChangedCallback(this, adapter, item)
 
-            private fun onItemsChanged() {
+            private fun onItemsChanged(updateSubItems: Boolean = true) {
                 previousObservableList?.removeOnListChangedCallback(listChangedCallback)
                 previousObservableList = item.items.get() as? ObservableList<Any>
                 previousObservableList?.addOnListChangedCallback(listChangedCallback)
+                if (updateSubItems)
+                    adapter.onSubItemsChanged(item, previousSize)
                 updatePreviousSize()
             }
 
@@ -505,7 +507,7 @@ class RecycleExpandableAdapter private constructor(
                 previousSize = item.items.get()?.size ?: 0
                 item.items.addOnPropertyChangedCallback(itemsChangedCallback)
                 item.expanded.addOnPropertyChangedCallback(expandedChangedCallback)
-                onItemsChanged()
+                onItemsChanged(false)
             }
 
             override fun unSubscribe() {
