@@ -28,15 +28,9 @@ class MainActivity : AppCompatActivity() {
                 dummyFocus.requestFocus()
             }
 
-            override fun onTabReselected(tab: TabLayout.Tab?) {
-                unfocus()
-            }
-
-            override fun onTabUnselected(tab: TabLayout.Tab?) {}
-
-            override fun onTabSelected(tab: TabLayout.Tab?) {
-                unfocus()
-            }
+            override fun onTabReselected(tab: TabLayout.Tab?) = unfocus()
+            override fun onTabUnselected(tab: TabLayout.Tab?) = Unit
+            override fun onTabSelected(tab: TabLayout.Tab?) = unfocus()
         })
     }
 }

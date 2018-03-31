@@ -44,7 +44,7 @@ open class Selectable : ViewModel() {
         controller?.onDeselect(this)
     }
 
-    protected open fun onSelectedChanged() {}
+    protected open fun onSelectedChanged() = Unit
 
     internal var controller: SelectionController? = null
 }

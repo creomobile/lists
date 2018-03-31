@@ -218,7 +218,7 @@ internal abstract class SelectionBehavior<T : Selectable>(protected val itemClas
             selectionReference.get()?.onRemoved()
         }
 
-        override fun onItemRangeMoved(sender: ObservableList<Any>, fromPosition: Int, toPosition: Int, itemCount: Int) {}
+        override fun onItemRangeMoved(sender: ObservableList<Any>, fromPosition: Int, toPosition: Int, itemCount: Int) = Unit
 
         override fun onItemRangeInserted(sender: ObservableList<Any>, positionStart: Int, itemCount: Int) {
             val selection = selectionReference.get() ?: return
